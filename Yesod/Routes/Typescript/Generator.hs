@@ -1,4 +1,4 @@
-module Generator (genTypeScriptRoutes) where
+module Yesod.Routes.Typescript.Generator (genTypeScriptRoutes) where
 
 import ClassyPrelude
 import Data.Text (dropWhileEnd)
