@@ -21,7 +21,9 @@ genTypeScriptRoutes resourcesApp fp = do
     createTree $ directory fp
     writeFile fp $ marshallFxn <> routesCs
   where
-    marshallFxn = "var __mrshl = (p:any) => (typeof p === 'array' ? p.join('/') : p.toString())\n"
+    -- referenced from http://stackoverflow.com/questions/4775722/check-if-object-is-array
+    marshallFxn =
+        "var __mrshl = (p:any) => (Object.prototype.toString.call( someVar ) === '[object Array]' ? p.join('/') : p.toString())\n"
     routesCs =
         let res = (resToCoffeeString Nothing "" $ ResourceParent "paths" [] hackedTree)
         in  either id id (snd res)
