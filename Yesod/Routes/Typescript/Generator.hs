@@ -44,10 +44,11 @@ genTypeScriptRoutes resourcesApp fp = do
       where uncapitalize t = (toLower $ take 1 t) <> drop 1 t
 
     renderRoutePieces pieces isMulti =
-        intercalate "/" $ map renderCheckingIdx $ zip [0..] pieces
+        intercalate "/" $ zipWith renderCheckingIdx [0..] pieces
       where
-        renderCheckingIdx (idx, piece) | isMulti && idx == lastVarIdx = renderRoutePiece piece <> "[]"
-                                       | otherwise = renderRoutePiece piece
+        renderCheckingIdx idx piece = renderRoutePiece piece <> arrayType
+          where arrayType | isMulti && idx == lastVarIdx = "[]"
+                          | otherwise = ""
         isDyn (_, Static _) = False
         isDyn _ = True
         lastVarIdx = case findIndices isDyn pieces of
