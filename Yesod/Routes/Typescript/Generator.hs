@@ -1,10 +1,11 @@
 module Yesod.Routes.Typescript.Generator (genTypeScriptRoutes) where
 
-import ClassyPrelude
+import ClassyPrelude hiding (last)
 import Data.Text (dropWhileEnd)
 import qualified Data.Text as DT
 import Filesystem (createTree)
 import Data.Char (isUpper)
+import Data.List (findIndices, last)
 import Yesod.Routes.TH
     -- ( ResourceTree(..),
     --   Piece(Dynamic, Static),
@@ -18,8 +19,11 @@ import Yesod.Routes.TH
 genTypeScriptRoutes :: [ResourceTree String] -> FilePath -> IO ()
 genTypeScriptRoutes resourcesApp fp = do
     createTree $ directory fp
-    writeFile fp routesCs
+    writeFile fp $ marshallFxn <> routesCs
   where
+    -- referenced from http://stackoverflow.com/questions/4775722/check-if-object-is-array
+    marshallFxn =
+        "var __mrshl = (p:any) => (Object.prototype.toString.call(p) === '[object Array]' ? p.join('/') : p.toString())\n"
     routesCs =
         let res = (resToCoffeeString Nothing "" $ ResourceParent "paths" [] hackedTree)
         in  either id id (snd res)
@@ -41,14 +45,24 @@ genTypeScriptRoutes resourcesApp fp = do
     cleanName = uncapitalize . dropWhileEnd isUpper
       where uncapitalize t = (toLower $ take 1 t) <> drop 1 t
 
-    renderRoutePieces pieces = intercalate "/" $ map renderRoutePiece pieces
+    renderRoutePieces pieces isMulti =
+        intercalate "/" $ zipWith renderCheckingIdx [0..] pieces
+      where
+        renderCheckingIdx idx piece = renderRoutePiece piece <> arrayType
+          where arrayType | isMulti && idx == lastVarIdx = "[]"
+                          | otherwise = ""
+        isDyn (_, Static _) = False
+        isDyn _ = True
+        lastVarIdx = case findIndices isDyn pieces of
+                        [] -> error "Expected multipiece, didn't find a last var"
+                        l -> last l
     renderRoutePiece p = case p of
         (_, Static st) -> pack st :: Text
         (_, Dynamic "Text") -> ":string"
         (_, Dynamic "Int") -> ":number"
         (_, Dynamic d) -> ":string"
     isVariable r = length r > 1 && DT.head r == ':'
-    resRoute res = renderRoutePieces $ resourcePieces res
+    resRoute res = renderRoutePieces (resourcePieces res) (isJust $ methodsMulti (resourceDispatch res))
     resName res = cleanName . pack $ resourceName res
     lastName res = fromMaybe (resName res)
                  . find (not . isVariable)
@@ -71,17 +85,19 @@ genTypeScriptRoutes resourcesApp fp = do
                         else [DT.replace "." "" $ lastName res]
         in ([], Right $ intercalate "\n" $ map mkLine jsNames)
       where
+        pieces :: [Text]
         pieces = DT.splitOn "/" routeString
+        variables :: [(Text, Text)]
         variables = snd $ foldl' (\(i,prev) typ -> (i+1, prev <> [("a" <> tshow i, typ)]))
                              (0::Int, [])
-                             (filter isVariable  pieces)
+                             (filter isVariable pieces)
         mkLine jsName = "  public " <> jsName <> "("
           <> csvArgs variables
           <> "):string { return " <> quote (routeStr variables variablePieces) <> "; }"
 
         routeStr vars ((Left p):rest) | null p    = routeStr vars rest
                                       | otherwise = "/" <> p <> routeStr vars rest
-        routeStr (v:vars) ((Right _):rest) = "/' + " <> fst v <> " + '" <> routeStr vars rest
+        routeStr (v:vars) ((Right _):rest) = "/' + __mrshl(" <> fst v <> ") + '" <> routeStr vars rest
         routeStr [] [] = ""
         routeStr _ [] = error "extra vars!"
         routeStr [] _ = error "no more vars!"
@@ -98,7 +114,7 @@ genTypeScriptRoutes resourcesApp fp = do
     resToCoffeeString parent routePrefix (ResourceParent "ApiH" pieces children) =
         (concatMap fst res, Left $ intercalate "\n" (map (either id id . snd) res))
       where
-        fxn = resToCoffeeString parent (routePrefix <> "/" <> renderRoutePieces pieces <> "/")
+        fxn = resToCoffeeString parent (routePrefix <> "/" <> renderRoutePieces pieces False<> "/")
         res = map fxn children
 
     resToCoffeeString parent routePrefix (ResourceParent name pieces children) =
@@ -113,7 +129,7 @@ genTypeScriptRoutes resourcesApp fp = do
           <> intercalate "\n" childMembers
           <> "  " <> parentMembers memberLinkFromParent
           <> "\n\n"
-          <> "  constructor(){\n  "
+          <> "  constructor(){\n"
           <> parentMembers memberInitFromParent
           <> "\n  }\n"
           <> "}\n\n"
@@ -122,7 +138,7 @@ genTypeScriptRoutes resourcesApp fp = do
         childTypescript = map fxn children
         jsName = maybe "" (<> "_") parent <> pref
         fxn = resToCoffeeString (Just jsName)
-                    (routePrefix <> "/" <> renderRoutePieces pieces <> "/")
+                    (routePrefix <> "/" <> renderRoutePieces pieces False <> "/")
         pref = cleanName $ pack name
         resourceClassName = "PATHS_TYPE_" <> jsName
 
