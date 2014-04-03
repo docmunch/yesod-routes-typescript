@@ -78,11 +78,15 @@ genTypeScriptRoutes resourcesApp fp = do
                              (filter isVariable  pieces)
         mkLine jsName = "  public " <> jsName <> "("
           <> csvArgs variables
-          <> "):string { return " <> quote (routeStr variables variablePieces) <> "; }"
-
+          <> "):string { "
+          -- <> presenceChk
+          <> "return " <> quote (routeStr variables variablePieces) <> "; }"
+        -- presenceChk = case variables of
+        --     [] -> ""
+        --     l -> "if (" <> intercalate " || " (map (("!" <>) . fst) l) <> ") { return null } "
         routeStr vars ((Left p):rest) | null p    = routeStr vars rest
                                       | otherwise = "/" <> p <> routeStr vars rest
-        routeStr (v:vars) ((Right _):rest) = "/' + " <> fst v <> " + '" <> routeStr vars rest
+        routeStr (v:vars) ((Right _):rest) = "/' + " <> fst v <> ".toString() + '" <> routeStr vars rest
         routeStr [] [] = ""
         routeStr _ [] = error "extra vars!"
         routeStr [] _ = error "no more vars!"
