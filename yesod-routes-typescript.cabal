@@ -2,7 +2,7 @@
 -- further documentation, see http://haskell.org/cabal/users-guide/
 
 name:                yesod-routes-typescript
-version:             0.2.0.0
+version:             0.3.0.0
 -- synopsis:            
 -- description:         
 homepage:            https://github.com/docmunch/yesod-routes-typescript
