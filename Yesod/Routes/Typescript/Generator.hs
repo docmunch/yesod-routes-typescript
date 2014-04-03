@@ -46,8 +46,7 @@ genTypeScriptRoutes resourcesApp fp = do
         (_, Static st) -> pack st :: Text
         (_, Dynamic "Text") -> ":string"
         (_, Dynamic "Int") -> ":number"
-        (_, Dynamic d) ->
-            ":" <> pack (if isSuffixOf "Id" d then "string" else pack d)
+        (_, Dynamic d) -> ":string"
     isVariable r = length r > 1 && DT.head r == ':'
     resRoute res = renderRoutePieces $ resourcePieces res
     resName res = cleanName . pack $ resourceName res
