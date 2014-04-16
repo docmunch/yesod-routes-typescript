@@ -37,7 +37,7 @@ library
                         TypeSynonymInstances
   build-depends:
                         attoparsec,
-                        base,
+                        base < 5,
                         classy-prelude >= 0.7,
                         system-fileio,
                         text,
