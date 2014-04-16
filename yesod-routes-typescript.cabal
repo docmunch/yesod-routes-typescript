@@ -3,8 +3,8 @@
 
 name:                yesod-routes-typescript
 version:             0.3.0.0
--- synopsis:            
--- description:         
+synopsis:            generate TypeScript routes for Yesod
+description:         parse the Yesod routes data structure and generate routes that can be used in typescript
 homepage:            https://github.com/docmunch/yesod-routes-typescript
 license:             MIT
 license-file:        LICENSE
