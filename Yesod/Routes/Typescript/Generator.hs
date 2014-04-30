@@ -25,7 +25,7 @@ genTypeScriptRoutes resourcesApp fp = do
         in  "/* jshint -W003 */\n" <>
             either id id (snd res)
             <> "\nvar PATHS:PATHS_TYPE_paths = new PATHS_TYPE_paths();"
-            <> "/* jshint +W003 */"
+            <> "\n/* jshint +W003 */\n"
 
     -- route hackery..
     fullTree = resourcesApp :: [ResourceTree String]
