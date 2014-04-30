@@ -22,8 +22,10 @@ genTypeScriptRoutes resourcesApp fp = do
   where
     routesCs =
         let res = (resToCoffeeString Nothing "" $ ResourceParent "paths" [] hackedTree)
-        in  either id id (snd res)
+        in  "/* jshint -W003 */\n" <>
+            either id id (snd res)
             <> "\nvar PATHS:PATHS_TYPE_paths = new PATHS_TYPE_paths();"
+            <> "/* jshint +W003 */"
 
     -- route hackery..
     fullTree = resourcesApp :: [ResourceTree String]
