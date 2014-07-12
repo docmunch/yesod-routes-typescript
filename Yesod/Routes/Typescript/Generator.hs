@@ -1,6 +1,11 @@
-module Yesod.Routes.Typescript.Generator (genTypeScriptRoutes) where
+module Yesod.Routes.Typescript.Generator
+    ( genTypeScriptRoutesPrefix
+    , genTypeScriptRoutes
+    ) where
 
 import ClassyPrelude
+import Data.List (nubBy)
+import Data.Function (on)
 import Data.Text (dropWhileEnd)
 import qualified Data.Text as DT
 import Filesystem (createTree)
@@ -16,7 +21,10 @@ import Yesod.Routes.TH
 -- Don't forget to add new modules to your cabal file!
 
 genTypeScriptRoutes :: [ResourceTree String] -> FilePath -> IO ()
-genTypeScriptRoutes resourcesApp fp = do
+genTypeScriptRoutes ra fp = genTypeScriptRoutesPrefix ra fp ""
+
+genTypeScriptRoutesPrefix :: [ResourceTree String] -> FilePath -> Text -> IO ()
+genTypeScriptRoutesPrefix resourcesApp fp prefix = do
     createTree $ directory fp
     writeFile fp routesCs
   where
@@ -68,9 +76,13 @@ genTypeScriptRoutes resourcesApp fp = do
                 Subsite _ _ -> error "subsite!"
                 Methods _ [] -> error "no methods!"
                 Methods _ methods ->
-                    if length methods > 1 || rname == ""
-                        then map (toLower . pack) methods
-                        else [DT.replace "." "" $ lastName res]
+                    let resName = DT.replace "." "" $ lastName res
+                        -- we basically never will want to refer to OPTIONS
+                        -- routes directly
+                        callableMeths = filter (\a -> a /= "OPTIONS") methods in
+                    if length callableMeths > 1 || rname == ""
+                        then map (((resName <> "_") <>) . toLower . pack) callableMeths
+                        else [resName]
         in ([], Right $ intercalate "\n" $ map mkLine jsNames)
       where
         pieces = DT.splitOn "/" routeString
@@ -81,10 +93,7 @@ genTypeScriptRoutes resourcesApp fp = do
           <> csvArgs variables
           <> "):string { "
           -- <> presenceChk
-          <> "return " <> quote (routeStr variables variablePieces) <> "; }"
-        -- presenceChk = case variables of
-        --     [] -> ""
-        --     l -> "if (" <> intercalate " || " (map (("!" <>) . fst) l) <> ") { return null } "
+          <> "return " <> quote (prefix <> routeStr variables variablePieces) <> "; }"
         routeStr vars ((Left p):rest) | null p    = routeStr vars rest
                                       | otherwise = "/" <> p <> routeStr vars rest
         routeStr (v:vars) ((Right _):rest) = "/' + " <> fst v <> ".toString() + '" <> routeStr vars rest
@@ -125,10 +134,10 @@ genTypeScriptRoutes resourcesApp fp = do
           <> "}\n\n"
           <> intercalate "\n" childClasses
         (childClasses, childMembers) = partitionEithers $ map snd childTypescript
-        childTypescript = map fxn children
         jsName = maybe "" (<> "_") parent <> pref
-        fxn = resToCoffeeString (Just jsName)
-                    (routePrefix <> "/" <> renderRoutePieces pieces <> "/")
+        childTypescript = flip map children $ resToCoffeeString
+                                (Just jsName)
+                                (routePrefix <> "/" <> renderRoutePieces pieces <> "/")
         pref = cleanName $ pack name
         resourceClassName = "PATHS_TYPE_" <> jsName
 
