@@ -21,7 +21,7 @@ import Yesod.Routes.TH
 -- Don't forget to add new modules to your cabal file!
 
 genTypeScriptRoutes :: [ResourceTree String] -> FilePath -> IO ()
-genTypeScriptRoutes ra fp = genTypeScriptRoutesPrefix ra fp ""
+genTypeScriptRoutes ra fp = genTypeScriptRoutesPrefix ra fp "''"
 
 genTypeScriptRoutesPrefix :: [ResourceTree String] -> FilePath -> Text -> IO ()
 genTypeScriptRoutesPrefix resourcesApp fp prefix = do
@@ -32,7 +32,7 @@ genTypeScriptRoutesPrefix resourcesApp fp prefix = do
         let res = (resToCoffeeString Nothing "" $ ResourceParent "paths" [] hackedTree)
         in  "/* jshint -W003 */\n" <>
             either id id (snd res)
-            <> "\nvar PATHS:PATHS_TYPE_paths = new PATHS_TYPE_paths();"
+            <> "\nvar PATHS:PATHS_TYPE_paths = new PATHS_TYPE_paths("<>prefix<>");"
             <> "\n/* jshint +W003 */\n"
 
     -- route hackery..
@@ -93,7 +93,7 @@ genTypeScriptRoutesPrefix resourcesApp fp prefix = do
           <> csvArgs variables
           <> "):string { "
           -- <> presenceChk
-          <> "return " <> quote (prefix <> routeStr variables variablePieces) <> "; }"
+          <> "return this.root + " <> quote (routeStr variables variablePieces) <> "; }"
         routeStr vars ((Left p):rest) | null p    = routeStr vars rest
                                       | otherwise = "/" <> p <> routeStr vars rest
         routeStr (v:vars) ((Right _):rest) = "/' + " <> fst v <> ".toString() + '" <> routeStr vars rest
@@ -121,14 +121,14 @@ genTypeScriptRoutesPrefix resourcesApp fp prefix = do
       where
         parentMembers f =
           intercalate "\n  " $ map f $ concatMap fst childTypescript
-        memberInitFromParent (slot, klass) = "  this." <> slot <> " = new " <> klass <> "();"
+        memberInitFromParent (slot, klass) = "  this." <> slot <> " = new " <> klass <> "(root);"
         memberLinkFromParent (slot, klass) = "public " <> slot <> ": " <> klass <> ";"
         linkFromParent = (pref, resourceClassName)
         resourceClassDef = "class " <>  resourceClassName  <> " {\n"
           <> intercalate "\n" childMembers
           <> "  " <> parentMembers memberLinkFromParent
           <> "\n\n"
-          <> "  constructor(){\n  "
+          <> "  constructor(public root:string){\n  "
           <> parentMembers memberInitFromParent
           <> "\n  }\n"
           <> "}\n\n"
