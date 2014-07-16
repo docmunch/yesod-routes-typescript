@@ -21,10 +21,10 @@ import Yesod.Routes.TH
 -- Don't forget to add new modules to your cabal file!
 
 genTypeScriptRoutes :: [ResourceTree String] -> FilePath -> IO ()
-genTypeScriptRoutes ra fp = genTypeScriptRoutesPrefix [] ra fp "''"
+genTypeScriptRoutes ra fp = genTypeScriptRoutesPrefix [] [] ra fp "''"
 
-genTypeScriptRoutesPrefix :: [String] -> [ResourceTree String] -> FilePath -> Text -> IO ()
-genTypeScriptRoutesPrefix routePrefixes resourcesApp fp prefix = do
+genTypeScriptRoutesPrefix :: [String] -> [String] -> [ResourceTree String] -> FilePath -> Text -> IO ()
+genTypeScriptRoutesPrefix routePrefixes elidedPrefixes resourcesApp fp prefix = do
     createTree $ directory fp
     writeFile fp routesCs
   where
@@ -111,7 +111,7 @@ genTypeScriptRoutesPrefix routePrefixes resourcesApp fp prefix = do
     -- this is here because in the typescript code, we dont refer to
     -- PATHS.api.doc.foo but PATHS.doc.foobar.  so we can keep our route
     -- orgazniation in place but also leave TS alone
-    resToCoffeeString parent routePrefix (ResourceParent "ApiH" pieces children) =
+    resToCoffeeString parent routePrefix (ResourceParent name pieces children) | name `elem` elidedPrefixes =
         (concatMap fst res, Left $ intercalate "\n" (map (either id id . snd) res))
       where
         fxn = resToCoffeeString parent (routePrefix <> "/" <> renderRoutePieces pieces <> "/")
