@@ -21,10 +21,10 @@ import Yesod.Routes.TH
 -- Don't forget to add new modules to your cabal file!
 
 genTypeScriptRoutes :: [ResourceTree String] -> FilePath -> IO ()
-genTypeScriptRoutes ra fp = genTypeScriptRoutesPrefix ra fp "''"
+genTypeScriptRoutes ra fp = genTypeScriptRoutesPrefix [] ra fp "''"
 
-genTypeScriptRoutesPrefix :: [ResourceTree String] -> FilePath -> Text -> IO ()
-genTypeScriptRoutesPrefix resourcesApp fp prefix = do
+genTypeScriptRoutesPrefix :: [String] -> [ResourceTree String] -> FilePath -> Text -> IO ()
+genTypeScriptRoutesPrefix routePrefixes resourcesApp fp prefix = do
     createTree $ directory fp
     writeFile fp routesCs
   where
@@ -41,12 +41,13 @@ genTypeScriptRoutesPrefix resourcesApp fp prefix = do
         ResourceParent _ _ _ -> False
         ResourceLeaf res -> not $ elem (resourceName res) ["AuthR", "StaticR"]
 
-    parentName :: String -> ResourceTree String -> Bool
-    parentName name (ResourceParent n _ _) = n == name
+    parentName :: ResourceTree String -> String -> Bool
+    parentName (ResourceParent n _ _) name = n == name
     parentName _ _  = False
 
     parents =
-        filter (\n -> parentName "PartialsH" n || parentName "ApiH" n) fullTree
+        -- if routePrefixes is empty, include all routes
+        filter (\n -> routePrefixes == [] || any (parentName n) routePrefixes) fullTree
     hackedTree = ResourceParent "staticPages" [] landingRoutes : parents
     cleanName = uncapitalize . dropWhileEnd isUpper
       where uncapitalize t = (toLower $ take 1 t) <> drop 1 t
