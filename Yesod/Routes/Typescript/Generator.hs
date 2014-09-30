@@ -10,7 +10,7 @@ import Data.Text (dropWhileEnd)
 import qualified Data.Text as DT
 import Filesystem (createTree)
 import Data.Char (isUpper)
-import Yesod.Routes.TH
+import Yesod.Routes.TH.Types
     -- ( ResourceTree(..),
     --   Piece(Dynamic, Static),
     --   FlatResource,
