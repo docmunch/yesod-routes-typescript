@@ -23,13 +23,15 @@ import Yesod.Routes.TH.Types
 genTypeScriptRoutes :: [ResourceTree String] -> FilePath -> IO ()
 genTypeScriptRoutes ra fp = genTypeScriptRoutesPrefix [] [] ra fp "''"
 
+resourceParent one two three = ResourceParent one False two three
+
 genTypeScriptRoutesPrefix :: [String] -> [String] -> [ResourceTree String] -> FilePath -> Text -> IO ()
 genTypeScriptRoutesPrefix routePrefixes elidedPrefixes resourcesApp fp prefix = do
     createTree $ directory fp
     writeFile fp routesCs
   where
     routesCs =
-        let res = (resToCoffeeString Nothing "" $ ResourceParent "paths" [] hackedTree)
+        let res = (resToCoffeeString Nothing "" $ resourceParent "paths" [] hackedTree)
         in  "/* jshint -W003 */\n" <>
             either id id (snd res)
             <> "\nvar PATHS:PATHS_TYPE_paths = new PATHS_TYPE_paths("<>prefix<>");"
@@ -38,26 +40,27 @@ genTypeScriptRoutesPrefix routePrefixes elidedPrefixes resourcesApp fp prefix = 
     -- route hackery..
     fullTree = resourcesApp :: [ResourceTree String]
     landingRoutes = flip filter fullTree $ \case
-        ResourceParent _ _ _ -> False
+        ResourceParent _ _ _ _ -> False
         ResourceLeaf res -> not $ elem (resourceName res) ["AuthR", "StaticR"]
 
     parentName :: ResourceTree String -> String -> Bool
-    parentName (ResourceParent n _ _) name = n == name
+    parentName (ResourceParent n _ _ _) name = n == name
     parentName _ _  = False
 
     parents =
         -- if routePrefixes is empty, include all routes
-        filter (\n -> routePrefixes == [] || any (parentName n) routePrefixes) fullTree
-    hackedTree = ResourceParent "staticPages" [] landingRoutes : parents
+        filter (\n -> null routePrefixes || any (parentName n) routePrefixes) fullTree
+    hackedTree = resourceParent "staticPages" [] landingRoutes : parents
     cleanName = uncapitalize . dropWhileEnd isUpper
-      where uncapitalize t = (toLower $ take 1 t) <> drop 1 t
+      where uncapitalize t = toLower (take 1 t) <> drop 1 t
 
+    renderRoutePieces :: (Eq str, IsString str) => [Piece str] -> Text
     renderRoutePieces pieces = intercalate "/" $ map renderRoutePiece pieces
     renderRoutePiece p = case p of
-        (_, Static st) -> pack st :: Text
-        (_, Dynamic "Text") -> ":string"
-        (_, Dynamic "Int") -> ":number"
-        (_, Dynamic d) -> ":string"
+        Static st -> pack st :: Text
+        Dynamic "Text" -> ":string"
+        Dynamic "Int" -> ":number"
+        Dynamic d -> ":string"
     isVariable r = length r > 1 && DT.head r == ':'
     resRoute res = renderRoutePieces $ resourcePieces res
     resName res = cleanName . pack $ resourceName res
@@ -95,9 +98,9 @@ genTypeScriptRoutesPrefix routePrefixes elidedPrefixes resourcesApp fp prefix = 
           <> "):string { "
           -- <> presenceChk
           <> "return this.root + " <> quote (routeStr variables variablePieces) <> "; }"
-        routeStr vars ((Left p):rest) | null p    = routeStr vars rest
+        routeStr vars (Left p : rest) | null p    = routeStr vars rest
                                       | otherwise = "/" <> p <> routeStr vars rest
-        routeStr (v:vars) ((Right _):rest) = "/' + " <> fst v <> ".toString() + '" <> routeStr vars rest
+        routeStr (v:vars) (Right _ : rest) = "/' + " <> fst v <> ".toString() + '" <> routeStr vars rest
         routeStr [] [] = ""
         routeStr _ [] = error "extra vars!"
         routeStr [] _ = error "no more vars!"
@@ -111,14 +114,14 @@ genTypeScriptRoutesPrefix routePrefixes elidedPrefixes resourcesApp fp prefix = 
     -- this is here because in the typescript code, we dont refer to
     -- PATHS.api.doc.foo but PATHS.doc.foobar.  so we can keep our route
     -- orgazniation in place but also leave TS alone
-    resToCoffeeString parent routePrefix (ResourceParent name pieces children) | name `elem` elidedPrefixes =
+    resToCoffeeString parent routePrefix (ResourceParent name _ pieces children) | name `elem` elidedPrefixes =
         (concatMap fst res, Left $ intercalate "\n" (map (either id id . snd) res))
       where
         fxn = resToCoffeeString parent (routePrefix <> "/" <> renderRoutePieces pieces <> "/")
         res = map fxn children
 
-    resToCoffeeString parent routePrefix (ResourceParent name pieces children) =
-        ([linkFromParent], Left $ resourceClassDef)
+    resToCoffeeString parent routePrefix (ResourceParent name _ pieces children) =
+        ([linkFromParent], Left resourceClassDef)
       where
         parentMembers f =
           intercalate "\n  " $ map f $ concatMap fst childTypescript
